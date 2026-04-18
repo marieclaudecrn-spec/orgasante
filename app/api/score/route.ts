@@ -102,7 +102,7 @@ const DONNEES_DEMO: Record<string, any> = {
 
 export async function GET() {
   try {
-    const { getSupabase } = await import('../../../lib/supabase');
+    const { getSupabase } = await import('../../lib/supabase');
     const supabase = getSupabase();
 
     const { data: rows } = await supabase
