@@ -14,7 +14,7 @@ export async function GET() {
     const response = await fetch('https://api.monday.com/v2', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': integration.access_token },
-      body: JSON.stringify({ query: `query { me { id name } }` }),
+      body: JSON.stringify({ query: `query { boards(limit: 5) { id name items_page(limit: 3) { items { id name column_values { id text type } } } } }` }),
     });
     const data = await response.json();
     return NextResponse.json(data);
