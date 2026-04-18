@@ -13,8 +13,8 @@ export async function GET() {
     if (!integration?.access_token) return NextResponse.json({ erreur: 'Pas de token' });
     const response = await fetch('https://api.monday.com/v2', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': integration.access_token, 'API-Version': '2024-01' },
-      body: JSON.stringify({ query: `query { boards(limit: 5) { id name items_page(limit: 5) { items { id name column_values { id text type } } } } }` }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': integration.access_token },
+      body: JSON.stringify({ query: `query { me { id name } }` }),
     });
     const data = await response.json();
     return NextResponse.json(data);
