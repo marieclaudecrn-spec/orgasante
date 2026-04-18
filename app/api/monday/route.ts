@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { syncMonday, genererUrlAutorisationMonday } from '../../mondayConnector';
+import { syncMonday, genererUrlAutorisationMonday } from '../../../mondayConnector';
 
 // GET /api/monday — Retourne l'URL d'autorisation OAuth
 export async function GET() {
