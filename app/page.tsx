@@ -12,14 +12,22 @@ const pilierCouleur: Record<string, { color: string; bg: string }> = {
 };
 
 export default function Dashboard() {
-  const [data, setData]             = useState<any>(null);
-  const [loading, setLoading]       = useState(true);
-  const [mondayUrl, setMondayUrl]   = useState('');
+  const [data, setData]           = useState<any>(null);
+  const [loading, setLoading]     = useState(true);
+  const [syncing, setSyncing]     = useState(false);
+  const [mondayUrl, setMondayUrl] = useState('');
   const [mondayConnecte, setMondayConnecte] = useState(false);
-  const [message, setMessage]       = useState('');
+  const [message, setMessage]     = useState('');
+  const [lastSync, setLastSync]   = useState('');
+
+  const chargerScore = () => {
+    fetch('/api/score')
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
 
   useEffect(() => {
-    // Vérifier si Monday vient d'être connecté
     const params = new URLSearchParams(window.location.search);
     if (params.get('monday') === 'connecte') {
       setMondayConnecte(true);
@@ -30,22 +38,32 @@ export default function Dashboard() {
       setMessage('Erreur de connexion — réessaie.');
       window.history.replaceState({}, '', '/');
     }
-
-    // Charger le score
-    fetch('/api/score')
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
-
-    // Charger l'URL Monday
+    chargerScore();
     fetch('/api/monday')
       .then(r => r.json())
       .then(d => setMondayUrl(d.authUrl))
       .catch(() => {});
   }, []);
 
-  const connecterMonday = () => {
-    if (mondayUrl) window.location.href = mondayUrl;
+  const connecterMonday = () => { if (mondayUrl) window.location.href = mondayUrl; };
+
+  const synchroniser = async () => {
+    setSyncing(true);
+    setMessage('Synchronisation en cours...');
+    try {
+      const res = await fetch('/api/sync', { method: 'POST' });
+      const result = await res.json();
+      if (result.succes) {
+        setLastSync(new Date().toLocaleTimeString('fr-CA'));
+        setMessage('Sync réussie ! Score mis à jour.');
+        chargerScore();
+      } else {
+        setMessage('Erreur : ' + (result.erreur || 'sync échouée'));
+      }
+    } catch {
+      setMessage('Erreur de synchronisation.');
+    }
+    setSyncing(false);
   };
 
   if (loading) return (
@@ -71,7 +89,8 @@ export default function Dashboard() {
     <main style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 900, margin: '0 auto', padding: '24px 16px', color: '#2C2C2A' }}>
 
       {message && (
-        <div style={{ background: mondayConnecte ? '#EAF3DE' : '#FCEBEB', color: mondayConnecte ? '#27500A' : '#791F1F',
+        <div style={{ background: message.includes('succès') || message.includes('réussie') ? '#EAF3DE' : message.includes('cours') ? '#E6F1FB' : '#FCEBEB',
+                      color: message.includes('succès') || message.includes('réussie') ? '#27500A' : message.includes('cours') ? '#0C447C' : '#791F1F',
                       padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13, fontWeight: 500 }}>
           {message}
         </div>
@@ -80,13 +99,23 @@ export default function Dashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 500, margin: 0, color: '#534AB7' }}>OrgaSanté</h1>
-          <p style={{ fontSize: 13, color: '#888780', margin: '4px 0 0' }}>Entreprise Exemple inc. — Période : {data.periode}</p>
+          <p style={{ fontSize: 13, color: '#888780', margin: '4px 0 0' }}>
+            Entreprise Exemple inc. — Période : {data.periode}
+            {lastSync && <span> — Dernière sync : {lastSync}</span>}
+          </p>
         </div>
-        <span style={{ background: data.statut.couleur === 'vert' ? '#EAF3DE' : data.statut.couleur === 'orange' ? '#FAEEDA' : '#FCEBEB',
-                       color: data.statut.couleur === 'vert' ? '#27500A' : data.statut.couleur === 'orange' ? '#633806' : '#791F1F',
-                       fontSize: 12, padding: '4px 14px', borderRadius: 999, fontWeight: 500 }}>
-          {data.statut.label}
-        </span>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={synchroniser} disabled={syncing}
+            style={{ background: syncing ? '#F1EFE8' : '#534AB7', color: syncing ? '#888780' : 'white',
+                     border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: syncing ? 'default' : 'pointer', fontWeight: 500 }}>
+            {syncing ? 'Sync...' : 'Synchroniser'}
+          </button>
+          <span style={{ background: data.statut.couleur === 'vert' ? '#EAF3DE' : data.statut.couleur === 'orange' ? '#FAEEDA' : '#FCEBEB',
+                         color: data.statut.couleur === 'vert' ? '#27500A' : data.statut.couleur === 'orange' ? '#633806' : '#791F1F',
+                         fontSize: 12, padding: '4px 14px', borderRadius: 999, fontWeight: 500 }}>
+            {data.statut.label}
+          </span>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 16, marginBottom: 16 }}>
@@ -146,7 +175,7 @@ export default function Dashboard() {
 
       <div style={{ background: 'white', border: '0.5px solid #D3D1C7', borderRadius: 12, padding: '16px 20px' }}>
         <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 10px' }}>Sources de données</p>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#F1EFE8', borderRadius: 8 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#B4B2A9' }} />
             <span style={{ fontSize: 13, color: '#888780' }}>QuickBooks — bientôt</span>
