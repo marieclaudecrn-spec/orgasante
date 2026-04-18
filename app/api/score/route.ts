@@ -49,11 +49,11 @@ const PILIERS_CONFIG: Record<string, any> = {
 };
 
 function getStatut(score: number) {
-  if (score >= 80) return { label: 'Fort',        couleur: 'vert' };
-  if (score >= 65) return { label: 'Bon',          couleur: 'vert' };
-  if (score >= 50) return { label: 'À améliorer',  couleur: 'orange' };
-  if (score >= 35) return { label: 'Faible',       couleur: 'rouge' };
-  return               { label: 'Critique',      couleur: 'rouge' };
+  if (score >= 80) return { label: 'Fort',       couleur: 'vert' };
+  if (score >= 65) return { label: 'Bon',         couleur: 'vert' };
+  if (score >= 50) return { label: 'À améliorer', couleur: 'orange' };
+  if (score >= 35) return { label: 'Faible',      couleur: 'rouge' };
+  return               { label: 'Critique',    couleur: 'rouge' };
 }
 
 function calculerScore(donnees: Record<string, any>) {
@@ -101,8 +101,46 @@ const DONNEES_DEMO: Record<string, any> = {
 };
 
 export async function GET() {
-  const resultat = calculerScore(DONNEES_DEMO);
-  return NextResponse.json(resultat);
+  try {
+    const { getSupabase } = await import('../../../lib/supabase');
+    const supabase = getSupabase();
+
+    const { data: rows } = await supabase
+      .from('indicateurs')
+      .select('*')
+      .eq('organisation_id', '11111111-1111-1111-1111-111111111111')
+      .eq('periode', new Date().toISOString().slice(0, 7));
+
+    const donnees = { ...DONNEES_DEMO };
+
+    if (rows && rows.length > 0) {
+      for (const row of rows) {
+        if (row.pilier === 'operations') {
+          donnees.operations = {
+            completionatem:    row.completion_a_temps    ?? DONNEES_DEMO.operations.completionatem,
+            projetsretard:     row.projets_retard_pct    ?? DONNEES_DEMO.operations.projetsretard,
+            utilisationequipe: row.utilisation_equipe    ?? DONNEES_DEMO.operations.utilisationequipe,
+            delailivraison:    row.retard_livraison_pct  ?? DONNEES_DEMO.operations.delailivraison,
+          };
+        }
+        if (row.pilier === 'ventes') {
+          donnees.ventes = {
+            tauxconversion: row.taux_conversion  ?? DONNEES_DEMO.ventes.tauxconversion,
+            retention:      row.retention_client ?? DONNEES_DEMO.ventes.retention,
+            cyclevente:     row.cycle_vente_jours ?? DONNEES_DEMO.ventes.cyclevente,
+            pipeline:       row.pipeline_ratio   ?? DONNEES_DEMO.ventes.pipeline,
+          };
+        }
+      }
+    }
+
+    const resultat = calculerScore(donnees);
+    return NextResponse.json(resultat);
+
+  } catch (e: any) {
+    const resultat = calculerScore(DONNEES_DEMO);
+    return NextResponse.json(resultat);
+  }
 }
 
 export async function POST(request: Request) {
