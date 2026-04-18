@@ -4,10 +4,9 @@ export async function syncMonday(accessToken: string) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': accessToken,
-      'API-Version': '2024-01',
     },
     body: JSON.stringify({
-      query: `query { boards(limit: 20) { id name items_page(limit: 200) { items { id name state column_values { id text type value } created_at updated_at } } } }`
+      query: `query { boards(limit: 20) { id name items_page(limit: 200) { items { id name column_values { id text type } created_at updated_at } } } }`
     }),
   });
 
@@ -17,22 +16,19 @@ export async function syncMonday(accessToken: string) {
   const maintenant = new Date();
 
   for (const board of boards) {
+    if (board.name.includes('Subitems') || board.name.includes('Welcome')) continue;
+    
     for (const item of board.items_page?.items || []) {
       total++;
 
-      // Chercher toutes les colonnes de type statut
-      const statusCol = item.column_values?.find((c: any) => 
-        c.type === 'color' || 
-        c.id === 'status' || 
-        c.id?.includes('status') ||
-        c.id?.includes('statut')
-      );
-
-      const statusText = statusCol?.text?.toLowerCase() || '';
-      const estDone = ['done', 'terminé', 'terminée', 'complété', 'completé', 'completed', 'fini'].some(s => statusText.includes(s));
+      // Chercher TOUTES les colonnes de type status
+      const statusCols = item.column_values?.filter((c: any) => c.type === 'status') || [];
+      const firstStatus = statusCols[0]?.text?.toLowerCase() || '';
       
-      // Vérifier date d'échéance
-      const dateCol = item.column_values?.find((c: any) => c.type === 'date' || c.id?.includes('date') || c.id?.includes('due'));
+      const estDone = ['done', 'terminé', 'terminée', 'complété', 'completed', 'fini'].some(s => firstStatus.includes(s));
+
+      // Date d'échéance
+      const dateCol = item.column_values?.find((c: any) => c.type === 'date' && c.text);
       const dateEcheance = dateCol?.text ? new Date(dateCol.text) : null;
       const estEnRetard = !estDone && dateEcheance && dateEcheance < maintenant;
 
