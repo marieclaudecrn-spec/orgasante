@@ -11,7 +11,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch('https://auth.monday.com/oauth2/token', {
+    // 1. Échanger le code contre un token
+    const tokenRes = await fetch('https://auth.monday.com/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -21,23 +22,48 @@ export async function GET(request: Request) {
         code,
       }),
     });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) throw new Error('Token non reçu');
 
-    const data = await response.json();
-    if (!data.access_token) throw new Error('Token non reçu');
+    // 2. Récupérer le profil de l'utilisateur
+    const profileRes = await fetch('https://api.monday.com/v2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': tokenData.access_token },
+      body: JSON.stringify({ query: `query { me { id name email title is_admin is_guest teams { id name } } }` }),
+    });
+    const profileData = await profileRes.json();
+    const user = profileData?.data?.me;
 
-    // Sauvegarder dans Supabase
+    // 3. Sauvegarder dans Supabase
     const { getSupabase } = await import('../../../lib/supabase');
     const supabase = getSupabase();
+
     await supabase.from('integrations').upsert({
       organisation_id: '11111111-1111-1111-1111-111111111111',
       outil:           'monday',
       statut:          'connecte',
-      access_token:    data.access_token,
-      compte_nom:      'Monday.com',
+      access_token:    tokenData.access_token,
+      compte_nom:      user?.name || 'Monday.com',
       derniere_sync:   new Date().toISOString(),
     }, { onConflict: 'organisation_id,outil' });
 
-    return NextResponse.redirect(`${base}?monday=connecte`);
+    // 4. Sauvegarder le profil utilisateur
+    if (user) {
+      await supabase.from('utilisateurs').upsert({
+        organisation_id: '11111111-1111-1111-1111-111111111111',
+        monday_id:       String(user.id),
+        nom:             user.name,
+        email:           user.email,
+        titre:           user.title || '',
+        est_admin:       user.is_admin || false,
+        derniere_connexion: new Date().toISOString(),
+      }, { onConflict: 'organisation_id,monday_id' });
+    }
+
+    // Rediriger selon le rôle
+    const redirect = user?.is_admin ? `${base}?monday=connecte&role=admin` : `${base}?monday=connecte&role=employe`;
+    return NextResponse.redirect(redirect);
+
   } catch (e: any) {
     console.error('[Monday OAuth]', e.message);
     return NextResponse.redirect(`${base}?erreur=connexion_echouee`);
