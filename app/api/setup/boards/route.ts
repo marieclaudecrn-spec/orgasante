@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const { getSupabase } = await import('../../../../lib/supabase');
+    const { getSupabase } = await import('../../../lib/supabase');
     const supabase = getSupabase();
     const { data: integration } = await supabase
       .from('integrations').select('access_token')

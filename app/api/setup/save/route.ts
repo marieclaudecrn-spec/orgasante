@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const config = await request.json();
-    const { getSupabase } = await import('../../../../lib/supabase');
+    const { getSupabase } = await import('../../../lib/supabase');
     const supabase = getSupabase();
 
     await supabase.from('integrations').upsert({
